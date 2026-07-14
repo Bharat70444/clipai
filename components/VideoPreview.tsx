@@ -12,6 +12,7 @@ export default function VideoPreview({ file }: VideoPreviewProps) {
   useEffect(() => {
     const url = URL.createObjectURL(file);
     setVideoURL(url);
+    
 
     return () => {
       URL.revokeObjectURL(url);
