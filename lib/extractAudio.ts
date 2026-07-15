@@ -1,16 +1,14 @@
 import { fetchFile } from "@ffmpeg/util";
 import { getFFmpeg } from "./ffmpeg";
 
-export async function extractAudio(video: File) {
+export async function extractAudio(video: File): Promise<Blob> {
   const ffmpeg = await getFFmpeg();
 
-  // Write uploaded video into FFmpeg's virtual filesystem
   await ffmpeg.writeFile(
     "input.mp4",
     await fetchFile(video)
   );
 
-  // Extract only the audio
   await ffmpeg.exec([
     "-i",
     "input.mp4",
@@ -20,10 +18,12 @@ export async function extractAudio(video: File) {
     "audio.mp3",
   ]);
 
-  // Read the generated audio
   const data = await ffmpeg.readFile("audio.mp3");
 
-  return new Blob([data], {
+  // Convert FFmpeg output into a normal Uint8Array
+  const bytes = new Uint8Array(data as Uint8Array);
+
+  return new Blob([bytes.buffer], {
     type: "audio/mpeg",
   });
 }

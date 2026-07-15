@@ -10,14 +10,23 @@ import AnalyzeButton from "@/components/AnalyzeButton";
 import StatusCard from "@/components/StatusCard";
 import ProgressBar from "@/components/ProgressBar";
 import LoadingSpinner from "@/components/LoadingSpinner";
+import AudioDownload from "@/components/AudioDownload";
+import Transcript from "@/components/Transcript";
 
 import { loadFFmpeg } from "@/lib/video";
 import { extractAudio } from "@/lib/extractAudio";
-export default function Home() {
-  // ==========================
-  // State Variables
-  // ==========================
+import { transcribeAudio } from "@/lib/transcribe";
+import { analyzeTranscript } from "@/lib/analyze";
+import { trimVideo } from "@/lib/trimVideo";
+import TrimmedVideo from "@/components/TrimmedVideo";
 
+type Highlight = {
+  start: number;
+  end: number;
+  reason: string;
+};
+
+export default function Home() {
   const [selectedVideo, setSelectedVideo] = useState<File | null>(null);
 
   const [status, setStatus] = useState("Ready");
@@ -28,9 +37,12 @@ export default function Home() {
 
   const [loadingMessage, setLoadingMessage] = useState("");
 
-  // ==========================
-  // Analyze Workflow
-  // ==========================
+  const [audioUrl, setAudioUrl] = useState("");
+
+  const [transcript, setTranscript] = useState("");
+
+  const [highlight, setHighlight] = useState<Highlight | null>(null);
+  const [trimmedVideoUrl, setTrimmedVideoUrl] = useState("");
 
   async function handleAnalyze() {
     if (!selectedVideo) return;
@@ -38,71 +50,93 @@ export default function Home() {
     try {
       setIsProcessing(true);
 
+      setAudioUrl("");
+      setTranscript("");
+      setHighlight(null);
+
       setProgress(0);
 
-      // Step 1 - Load FFmpeg
+      // Load FFmpeg
       setLoadingMessage("Loading FFmpeg...");
       setStatus("⚙️ Loading FFmpeg...");
       setProgress(10);
 
       await loadFFmpeg();
 
-      // Step 2 - Extract Audio (Coming Next)
+      // Extract Audio
       setLoadingMessage("Extracting Audio...");
       setStatus("🎵 Extracting Audio...");
-      setProgress(30);
+      setProgress(35);
 
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const audioBlob = await extractAudio(selectedVideo);
 
-      // Step 3 - Whisper
-      setLoadingMessage("Running Whisper AI...");
-      setStatus("📝 Transcribing Speech...");
-      setProgress(55);
+      const audioObjectUrl = URL.createObjectURL(audioBlob);
 
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      setAudioUrl(audioObjectUrl);
 
-      // Step 4 - Groq
-      setLoadingMessage("Analyzing Transcript...");
-      setStatus("🤖 Finding Best Clip...");
-      setProgress(80);
+      // Speech To Text
+      setLoadingMessage("Generating Transcript...");
+      setStatus("📝 Transcribing Audio...");
+      setProgress(60);
 
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const transcriptionResult = await transcribeAudio(audioBlob);
 
-      // Step 5 - Final
-      setLoadingMessage("Finalizing...");
-      setStatus("✂️ Preparing Final Video...");
-      setProgress(95);
+      console.log("Transcription:", transcriptionResult);
 
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      if (!transcriptionResult.success) {
+        throw new Error("Transcription failed");
+      }
 
-      setLoadingMessage("");
-      setStatus("✅ Analysis Complete");
-      setProgress(100);
-    } catch (error) {
-      console.error(error);
+      setTranscript(transcriptionResult.transcript);
 
-      setStatus("❌ Failed to load FFmpeg");
-      setLoadingMessage("");
-    } finally {
-      setIsProcessing(false);
-    }
+      // AI Analysis
+      setLoadingMessage("Finding Best Highlight...");
+      setStatus("🤖 AI is analyzing transcript...");
+      setProgress(85);
+
+      const analysisResult = await analyzeTranscript(
+        transcriptionResult.transcript
+      );
+
+      console.log("Highlight:", analysisResult);
+
+      if (analysisResult.success) {
+    const highlight = analysisResult.result;
+
+    setHighlight(highlight);
+
+    setLoadingMessage("Trimming Video...");
+    setStatus("✂️ Creating Highlight...");
+    setProgress(95);
+
+    const trimmedUrl = await trimVideo(
+      selectedVideo,
+      highlight.start,
+      highlight.end
+    );
+
+    setTrimmedVideoUrl(trimmedUrl);
+
+    setLoadingMessage("");
+    setStatus("🎉 Highlight Ready!");
+    setProgress(100);
+    }} catch (error) {
+  console.error(error);
+
+  setStatus("❌ Error while processing video");
+  setLoadingMessage("");
+} finally {
+  setIsProcessing(false);
+}
   }
 
-  // ==========================
-  // UI
-  // ==========================
-
   return (
-    <main className="min-h-screen bg-gray-100">
+    <main className="min-h-screen bg-gradient-to-br from-slate-100 to-blue-100 text-indigo-700">
       <div className="mx-auto flex max-w-5xl flex-col items-center px-6 py-16">
-
-        {/* Hero */}
         <Hero />
 
-        {/* Upload */}
         <UploadBox onVideoSelect={setSelectedVideo} />
 
-        {/* Everything below appears after selecting a video */}
         {selectedVideo && (
           <>
             <VideoPreview file={selectedVideo} />
@@ -121,9 +155,45 @@ export default function Home() {
             {isProcessing && (
               <LoadingSpinner message={loadingMessage} />
             )}
+
+            {audioUrl && (
+              <AudioDownload audioUrl={audioUrl} />
+            )}
+
+            {transcript && (
+              <Transcript text={transcript} />
+            )}
+
+            {highlight && (
+              <div className="mt-8 w-full max-w-3xl rounded-2xl bg-white p-6 shadow-lg">
+                <h2 className="mb-4 text-2xl font-bold">
+                  🎯 AI Highlight
+                </h2>
+
+                <div className="space-y-3 text-gray-800">
+                  <p>
+                    <strong >Start:</strong> {highlight.start} sec
+                  </p>
+
+                  <p>
+                    <strong>End:</strong> {highlight.end} sec
+                  </p>
+
+                  <p>
+                    <strong>Reason:</strong> {highlight.reason}
+                  </p>
+                </div>
+              </div>
+            )}
+            {trimmedVideoUrl && (
+  <TrimmedVideo videoUrl={trimmedVideoUrl} />
+)}
           </>
         )}
       </div>
+
+      
     </main>
   );
+  
 }

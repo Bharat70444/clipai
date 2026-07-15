@@ -4,7 +4,9 @@ import { toBlobURL } from "@ffmpeg/util";
 let ffmpeg: FFmpeg | null = null;
 
 export async function getFFmpeg() {
-  if (ffmpeg) return ffmpeg;
+  if (ffmpeg) {
+    return ffmpeg;
+  }
 
   ffmpeg = new FFmpeg();
 

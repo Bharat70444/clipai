@@ -38,7 +38,7 @@ export default function VideoInfo({ file }: Props) {
 
   return (
     <div className="mt-8 w-full max-w-3xl rounded-2xl bg-white p-6 shadow-lg">
-      <h2 className="mb-4 text-2xl font-bold">
+      <h2 className="mb-4 text-2xl font-bold text-indigo-700">
         📄 Video Information
       </h2>
 
